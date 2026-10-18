@@ -38,7 +38,15 @@ static pico_fatfs_spi_config_t sd_config = {
 
 // Conversion Factor (lab 3)
 const float ADC_FULL_SCALE_COUNTS = (1 << 12); // 12-bit ADC
-const float CONVERSION_FACTOR_V = SUPPLY_VOLTS /ADC_FULL_SCALE_COUNTS;
+const float CONVERSION_FACTOR_V = SUPPLY_VOLTS / ADC_FULL_SCALE_COUNTS;
+
+float read_volts(unsigned int adc_input)
+    {
+        adc_select_input(adc_input);
+        return adc_read() *
+               (SUPPLY_VOLTS /
+                ADC_FULL_SCALE_COUNTS);
+    }
 
 int main()
 {
@@ -97,27 +105,31 @@ int main()
         const char *header = "time_s, volts, lux, temp_C\r\n";
         f_write(&fil, header, strlen(header), &bw);
     }
+    
 
     while (true)
     {
+        float photo_cell_volts = read_volts(PHOTO_CELL_ADC);
+        float temp_volts = read_volts(TEMP_ADC);
+
         // From lab 3:
         // Photocell
-        adc_select_input(PHOTO_CELL_ADC);
+        /* adc_select_input(PHOTO_CELL_ADC);
         // 12-bit conversion, max == ADC_VREF == 3.3 V
         uint16_t result = adc_read();
         uint32_t sum = 0;
         for (int i = 0; i < 16; i++)
             sum += adc_read();
-
+ */
         // Convert to lux
-        float lux_volts = result * CONVERSION_FACTOR_V;
+        float lux_volts = photo_cell_volts * CONVERSION_FACTOR_V;
         float lux_resistance = SUPPLY_VOLTS * RESISTOR / lux_volts - RESISTOR;
         float lux = powf(10.0f, -1.67f * log10f(lux_resistance) + LUX_CONSTANT);
 
         // LM19
-        adc_select_input(TEMP_ADC);
+       /*  adc_select_input(TEMP_ADC);
         float temp_volts = adc_read() * CONVERSION_FACTOR_V;
-
+        */
         // datasheet eq.(1): linear
         float temp_lin = (1.8663f - temp_volts) / 0.01169f;
         // datasheet eq.(3): full range (uses sqrtf from math.h)

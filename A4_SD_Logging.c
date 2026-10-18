@@ -23,6 +23,9 @@
 #include "ff.h"      // FatFs: f_mount, f_open, f_write, f_sync
 #include "tf_card.h" // pico_fatfs: SD card pins and clock
 
+#include "sensors.h" // photocell and LM19 temperature sensor
+
+// TODO:: move to sensors.c
 #define PHOTO_CELL_PIN 26
 #define PHOTO_CELL_ADC 0
 #define RESISTOR_OHMS 7500.0f
@@ -36,6 +39,7 @@
 #define PIN_RX 20 // POCI: from the card's DO
 #define PIN_CS 21
 
+// TODO:: move to sd_logger.c
 // Describe the wiring:
 static pico_fatfs_spi_config_t sd_config = {
     spi0,             // SPI instance
@@ -48,29 +52,37 @@ static pico_fatfs_spi_config_t sd_config = {
     true              // pull-ups on DO and DI
 };
 
+// TODO:: move to sensors.c
 // Conversion Factor equation
-const float ADC_FULL_SCALE_COUNTS = (1 << 12); // 12-bit ADC
+/* const float ADC_FULL_SCALE_COUNTS = (1 << 12); // 12-bit ADC
 const float CONVERSION_FACTOR_V = SUPPLY_VOLTS / ADC_FULL_SCALE_COUNTS;
 
 float read_volts(unsigned int adc_input)
 {
     adc_select_input(adc_input);
     return adc_read() *
-           CONVERSION_FACTOR_V;
-}
+           SUPPLY_VOLTS / ADC_FULL_SCALE_COUNTS;
+} */
 
 int main()
 {
+    
+sensors_init(); // initialize the ADC and both sensor pins
+// float lux= sensors_read_lux(); // read the photocell once, returns illuminance in lux
+// float temp_c = sensors_read_celsius(); // read the LM19 once, returns temperature in
+
+
     stdio_init_all();
     sleep_ms(SAMPLE_PERIOD_MS);
-
     // Photocell setup
     printf(" ADC Example, measuring GPIO26\n");
-    adc_init();
-    adc_gpio_init(PHOTO_CELL_PIN);
-    // LM19 setup
-    adc_gpio_init(TEMP_PIN);
-
+    
+    // TODO:: move to sensors.c
+    // adc_init();
+    // adc_gpio_init(PHOTO_CELL_PIN);
+    // // LM19 setup
+    // adc_gpio_init(TEMP_PIN);
+    // TODO:: move to sd_logger.c
     spi_init(spi0, 1000 * 1000);               // 1 MHz (slow and safe)
     gpio_set_function(PIN_SCK, GPIO_FUNC_SPI); // spio gets 3 pins
     gpio_set_function(PIN_TX, GPIO_FUNC_SPI);
@@ -97,6 +109,7 @@ int main()
         printf("Done. Safe to remove the card.\r\n");
     */
 
+    // TODO:: move to sd_logger.c
     // Step 10   File save name
     pico_fatfs_set_config(&sd_config); // before f_mount
     static FATFS fs;
@@ -118,19 +131,23 @@ int main()
 
     while (true)
     {
-        float photo_cell_volts = read_volts(PHOTO_CELL_ADC);
-        float temp_volts = read_volts(TEMP_ADC);
-        // Convert to lux
-        float lux_resistance = SUPPLY_VOLTS * RESISTOR_OHMS / photo_cell_volts - RESISTOR_OHMS;
-        float lux = powf(10.0f, -1.67f * log10f(lux_resistance) + LUX_CONSTANT);
+        float lux= sensors_read_lux(); // read the photocell once, returns illuminance in lux
+        float temp_c = sensors_read_celsius(); // read the LM19 once, returns temperature in
 
+        // TODO:: move to sensors.c
+        // float photo_cell_volts = read_volts(PHOTO_CELL_ADC);
+        // float temp_volts = read_volts(TEMP_ADC);
+        // Convert to lux
+/*      float lux_resistance = SUPPLY_VOLTS * RESISTOR_OHMS / photo_cell_volts - RESISTOR_OHMS;
+        float lux = powf(10.0f, -1.67f * log10f(lux_resistance) + LUX_CONSTANT);
         // LM19 datasheet eq.(1): linear
         float temp_lin = (1.8663f - temp_volts) / 0.01169f;
         // LM19 datasheet eq.(3): full range (uses sqrtf from math.h)
         float temp_full = -1481.96f + sqrtf(2.1962e6f + (1.8639f - temp_volts) / 3.88e-6f);
-        float temp_c = temp_lin;                                       // chosen as current temp range is between 15-25C
+        float temp_c = temp_lin;              */                          // chosen as current temp range is between 15-25C
         float time_s = to_ms_since_boot(get_absolute_time()) / 1000.0; // convert millisec to sec
 
+        // TODO:: move to sd_logger.c
         /* Lab 4
         uint8_t rx;
         gpio_put(PIN_CS, 0); // select
@@ -143,7 +160,9 @@ int main()
         // Step 11 lab 4 print out and save file
         char line[64];
         int len = snprintf(line, sizeof line,
-                           "%.3f, %.3f, %.7f, %.3f\r\n", time_s, photo_cell_volts, lux, temp_c);
+//                           "%.3f, %.3f, %.7f, %.3f\r\n", time_s, photo_cell_volts, lux, temp_c);
+                           "%.3f, %.7f, %.3f\r\n", time_s, lux, temp_c);
+  
         printf("%s", line);            // Serial Monitor
         f_write(&fil, line, len, &bw); // into the buffer
         f_sync(&fil);                  // onto the card

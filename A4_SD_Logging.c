@@ -1,24 +1,36 @@
+/*
+ * A4_SD_Logging.c
+ * Environmental logger: reads light
+ * and temperature once per sample
+ * period, prints each reading with the
+ * corresponding time and voltage, and
+ * appends it to multi_source_cali_ref.csv.
+ *
+ * Author: David Carter
+ * Date: October 18th, 2026
+ * License: MIT (see LICENSE)
+ */
+
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
 #include <stdio.h>
-#include <string.h> // strlen
-#include <math.h>   // Lab 3 conversions
+#include <string.h>
+#include <math.h>
 #include "hardware/gpio.h"
 #include "hardware/adc.h"
-#include "hardware/spi.h" //  From exercise 1
-#include "ff.h"           // FatFs: f_mount, f_open, f_write, f_sync
-#include "tf_card.h"      // pico_fatfs: SD card pins and clock
+#include "hardware/spi.h"
+#include "ff.h"      // FatFs: f_mount, f_open, f_write, f_sync
+#include "tf_card.h" // pico_fatfs: SD card pins and clock
 
-// From lab 3
 #define PHOTO_CELL_PIN 26
 #define PHOTO_CELL_ADC 0
-#define RESISTOR 7500.0f
+#define RESISTOR_OHMS 7500.0f
 #define LUX_CONSTANT 7.2723f
 #define SUPPLY_VOLTS 3.3f
 #define TEMP_PIN 27
 #define TEMP_ADC 1
-// From lab 4
+#define SAMPLE_PERIOD_MS 1000
 #define PIN_SCK 18
 #define PIN_TX 19 // PICO: to the card's DI
 #define PIN_RX 20 // POCI: from the card's DO
@@ -36,24 +48,22 @@ static pico_fatfs_spi_config_t sd_config = {
     true              // pull-ups on DO and DI
 };
 
-// Conversion Factor (lab 3)
+// Conversion Factor equation
 const float ADC_FULL_SCALE_COUNTS = (1 << 12); // 12-bit ADC
 const float CONVERSION_FACTOR_V = SUPPLY_VOLTS / ADC_FULL_SCALE_COUNTS;
 
 float read_volts(unsigned int adc_input)
-    {
-        adc_select_input(adc_input);
-        return adc_read() *
-               (SUPPLY_VOLTS /
-                ADC_FULL_SCALE_COUNTS);
-    }
+{
+    adc_select_input(adc_input);
+    return adc_read() *
+           CONVERSION_FACTOR_V;
+}
 
 int main()
 {
     stdio_init_all();
-    sleep_ms(2000); // From in Lab 3
+    sleep_ms(SAMPLE_PERIOD_MS);
 
-    // From lab 3
     // Photocell setup
     printf(" ADC Example, measuring GPIO26\n");
     adc_init();
@@ -105,38 +115,21 @@ int main()
         const char *header = "time_s, volts, lux, temp_C\r\n";
         f_write(&fil, header, strlen(header), &bw);
     }
-    
 
     while (true)
     {
         float photo_cell_volts = read_volts(PHOTO_CELL_ADC);
         float temp_volts = read_volts(TEMP_ADC);
-
-        // From lab 3:
-        // Photocell
-        /* adc_select_input(PHOTO_CELL_ADC);
-        // 12-bit conversion, max == ADC_VREF == 3.3 V
-        uint16_t result = adc_read();
-        uint32_t sum = 0;
-        for (int i = 0; i < 16; i++)
-            sum += adc_read();
- */
         // Convert to lux
-        float lux_volts = photo_cell_volts * CONVERSION_FACTOR_V;
-        float lux_resistance = SUPPLY_VOLTS * RESISTOR / lux_volts - RESISTOR;
+        float lux_resistance = SUPPLY_VOLTS * RESISTOR_OHMS / photo_cell_volts - RESISTOR_OHMS;
         float lux = powf(10.0f, -1.67f * log10f(lux_resistance) + LUX_CONSTANT);
 
-        // LM19
-       /*  adc_select_input(TEMP_ADC);
-        float temp_volts = adc_read() * CONVERSION_FACTOR_V;
-        */
-        // datasheet eq.(1): linear
+        // LM19 datasheet eq.(1): linear
         float temp_lin = (1.8663f - temp_volts) / 0.01169f;
-        // datasheet eq.(3): full range (uses sqrtf from math.h)
+        // LM19 datasheet eq.(3): full range (uses sqrtf from math.h)
         float temp_full = -1481.96f + sqrtf(2.1962e6f + (1.8639f - temp_volts) / 3.88e-6f);
-        float temp_c = temp_lin; // chosen as current temp range is between 15-25C
-        float time_s = to_ms_since_boot(get_absolute_time()) / 1000.0;
-        // printf(" Time: %.3f,  Volts: %.3f, Lux: %f, Temp_Lin: %.3f\r\n", t_s, volts, lux, temp_c);
+        float temp_c = temp_lin;                                       // chosen as current temp range is between 15-25C
+        float time_s = to_ms_since_boot(get_absolute_time()) / 1000.0; // convert millisec to sec
 
         /* Lab 4
         uint8_t rx;
@@ -150,11 +143,11 @@ int main()
         // Step 11 lab 4 print out and save file
         char line[64];
         int len = snprintf(line, sizeof line,
-                           "%.3f, %.3f, %.7f, %.3f\r\n", time_s, lux_volts, lux, temp_c);
+                           "%.3f, %.3f, %.7f, %.3f\r\n", time_s, photo_cell_volts, lux, temp_c);
         printf("%s", line);            // Serial Monitor
         f_write(&fil, line, len, &bw); // into the buffer
         f_sync(&fil);                  // onto the card
 
-        sleep_ms(1000);
+        sleep_ms(SAMPLE_PERIOD_MS);
     }
 }

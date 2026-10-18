@@ -13,11 +13,11 @@
 // From lab 3
 #define PHOTO_CELL_PIN 26
 #define PHOTO_CELL_ADC 0
-#define R2_OHMS 7500.0f
-#define LUX_B 7.2723f
+#define RESISTOR 7500.0f
+#define LUX_CONSTANT 7.2723f
+#define SUPPLY_VOLTS 3.3f
 #define TEMP_PIN 27
 #define TEMP_ADC 1
-
 // From lab 4
 #define PIN_SCK 18
 #define PIN_TX 19           // PICO: to the card's DI
@@ -37,7 +37,7 @@ static pico_fatfs_spi_config_t sd_config = {
 };
 
 // Conversion Factor (lab 3)
-const float conversion_factor = 3.3f / (1 << 12);
+const float CONVERSION_FACTOR_V = SUPPLY_VOLTS / (1 << 12);
 
 int main()
 {
@@ -59,7 +59,7 @@ int main()
     gpio_init(PIN_CS); // CS: plain output
     gpio_set_dir(PIN_CS, GPIO_OUT);
     gpio_put(PIN_CS, 1); // idle hig
-    uint8_t tx = 0xA5;   // out on TX, iin on RX
+    uint8_t tx = 0xA5;   // out on TX, in on RX
 
 /* part of step 10:
     pico_fatfs_set_config(&sd_config); // before f_mount
@@ -109,21 +109,21 @@ int main()
             sum += adc_read();
         // float raw = sum / 16.0f;
         // float v = raw * 3 / 4096;           // int math
-        // float v_f = raw * 3.3f / 4096;      // float math
+        // float v_f = raw * SUPPLY_VOLTS / 4096;      // float math
         // Convert to lux
         
-        float volts = result * conversion_factor;
-        float r1 = 3.3f * R2_OHMS / volts - R2_OHMS;
-        float lux = powf(10.0f, -1.67f * log10f(r1) + LUX_B);
+        float lux_volts = result * CONVERSION_FACTOR_V;
+        float lux_resistance = SUPPLY_VOLTS * RESISTOR / lux_volts - RESISTOR;
+        float lux = powf(10.0f, -1.67f * log10f(lux_resistance) + LUX_CONSTANT);
         // LM19
         adc_select_input(TEMP_ADC);
-        float t_volts = adc_read() * conversion_factor;
+        float temp_volts = adc_read() * CONVERSION_FACTOR_V;
         // datasheet eq.(1): linear
-        float temp_lin = (1.8663f - t_volts) / 0.01169f;
+        float temp_lin = (1.8663f - temp_volts) / 0.01169f;
         // datasheet eq.(3): full range (uses sqrtf from math.h)
-        float temp_full = -1481.96f + sqrtf(2.1962e6f + (1.8639f - t_volts) / 3.88e-6f);
+        float temp_full = -1481.96f + sqrtf(2.1962e6f + (1.8639f - temp_volts) / 3.88e-6f);
         float temp_c = temp_lin; // chosen as current temp range is between 15-25C
-        float t_s = to_ms_since_boot(get_absolute_time()) / 1000.0;
+        float time_s = to_ms_since_boot(get_absolute_time()) / 1000.0;
         // printf(" Time: %.3f,  Volts: %.3f, Lux: %f, Temp_Lin: %.3f\r\n", t_s, volts, lux, temp_c);
 
         /* Lab 4
@@ -138,7 +138,7 @@ int main()
         // Step 11 lab 4 print out and save file
         char line[64];
         int len = snprintf(line, sizeof line,
-                           "%.3f, %.3f, %.7f, %.3f\r\n", t_s, volts, lux, temp_c);
+                           "%.3f, %.3f, %.7f, %.3f\r\n", time_s, lux_volts, lux, temp_c);
         printf("%s", line);            // Serial Monitor
         f_write(&fil, line, len, &bw); // into the buffer
         f_sync(&fil);                  // onto the card

@@ -2,13 +2,13 @@
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
 #include <stdio.h>
-#include <string.h>         // strlen
-#include <math.h>           // Lab 3 conversions
+#include <string.h> // strlen
+#include <math.h>   // Lab 3 conversions
 #include "hardware/gpio.h"
 #include "hardware/adc.h"
-#include "hardware/spi.h"   //  From exercise 1
-#include "ff.h"             // FatFs: f_mount, f_open, f_write, f_sync
-#include "tf_card.h"        // pico_fatfs: SD card pins and clock
+#include "hardware/spi.h" //  From exercise 1
+#include "ff.h"           // FatFs: f_mount, f_open, f_write, f_sync
+#include "tf_card.h"      // pico_fatfs: SD card pins and clock
 
 // From lab 3
 #define PHOTO_CELL_PIN 26
@@ -20,8 +20,8 @@
 #define TEMP_ADC 1
 // From lab 4
 #define PIN_SCK 18
-#define PIN_TX 19           // PICO: to the card's DI
-#define PIN_RX 20           // POCI: from the card's DO
+#define PIN_TX 19 // PICO: to the card's DI
+#define PIN_RX 20 // POCI: from the card's DO
 #define PIN_CS 21
 
 // Describe the wiring:
@@ -37,12 +37,13 @@ static pico_fatfs_spi_config_t sd_config = {
 };
 
 // Conversion Factor (lab 3)
-const float CONVERSION_FACTOR_V = SUPPLY_VOLTS / (1 << 12);
+const float ADC_FULL_SCALE_COUNTS = (1 << 12); // 12-bit ADC
+const float CONVERSION_FACTOR_V = SUPPLY_VOLTS /ADC_FULL_SCALE_COUNTS;
 
 int main()
 {
     stdio_init_all();
-    sleep_ms(2000);                             // From in Lab 3
+    sleep_ms(2000); // From in Lab 3
 
     // From lab 3
     // Photocell setup
@@ -61,38 +62,38 @@ int main()
     gpio_put(PIN_CS, 1); // idle hig
     uint8_t tx = 0xA5;   // out on TX, in on RX
 
-/* part of step 10:
-    pico_fatfs_set_config(&sd_config); // before f_mount
-    FATFS fs;
-    FIL fil;
-    FRESULT fr = f_mount(&fs, "", 1);
-    printf("f_mount: %d\r\n", fr); // 0 means FR_OK
-    fr = f_open(&fil, "hello.txt",
-                FA_WRITE | FA_CREATE_ALWAYS);
-    printf("f_open: %d\r\n", fr);
-    const char *msg = "Hello from OCE560\r\n";
-    UINT bw; // bytes written
-    f_write(&fil, msg, strlen(msg), &bw);
-    f_close(&fil);
-    f_unmount("");
-    printf("Done. Safe to remove the card.\r\n");
-*/
+    /* part of step 10:
+        pico_fatfs_set_config(&sd_config); // before f_mount
+        FATFS fs;
+        FIL fil;
+        FRESULT fr = f_mount(&fs, "", 1);
+        printf("f_mount: %d\r\n", fr); // 0 means FR_OK
+        fr = f_open(&fil, "hello.txt",
+                    FA_WRITE | FA_CREATE_ALWAYS);
+        printf("f_open: %d\r\n", fr);
+        const char *msg = "Hello from OCE560\r\n";
+        UINT bw; // bytes written
+        f_write(&fil, msg, strlen(msg), &bw);
+        f_close(&fil);
+        f_unmount("");
+        printf("Done. Safe to remove the card.\r\n");
+    */
 
     // Step 10   File save name
-    pico_fatfs_set_config(&sd_config);      // before f_mount
+    pico_fatfs_set_config(&sd_config); // before f_mount
     static FATFS fs;
     FRESULT fr = f_mount(&fs, "", 1);
     if (fr != FR_OK)
-        printf("f_mount: %d\r\n", fr);      // 0 means FR_OK
+        printf("f_mount: %d\r\n", fr); // 0 means FR_OK
 
     static FIL fil;
     fr = f_open(&fil, "multi_source_cali_ref.csv", FA_OPEN_APPEND | FA_WRITE);
     if (fr != FR_OK)
         printf("f_open: %d\r\n", fr);
-    
-    UINT bw;                                // bytes written
-    if (f_size(&fil) == 0)                  // header, new file only
-    { 
+
+    UINT bw;               // bytes written
+    if (f_size(&fil) == 0) // header, new file only
+    {
         const char *header = "time_s, volts, lux, temp_C\r\n";
         f_write(&fil, header, strlen(header), &bw);
     }
@@ -107,17 +108,16 @@ int main()
         uint32_t sum = 0;
         for (int i = 0; i < 16; i++)
             sum += adc_read();
-        // float raw = sum / 16.0f;
-        // float v = raw * 3 / 4096;           // int math
-        // float v_f = raw * SUPPLY_VOLTS / 4096;      // float math
+
         // Convert to lux
-        
         float lux_volts = result * CONVERSION_FACTOR_V;
         float lux_resistance = SUPPLY_VOLTS * RESISTOR / lux_volts - RESISTOR;
         float lux = powf(10.0f, -1.67f * log10f(lux_resistance) + LUX_CONSTANT);
+
         // LM19
         adc_select_input(TEMP_ADC);
         float temp_volts = adc_read() * CONVERSION_FACTOR_V;
+
         // datasheet eq.(1): linear
         float temp_lin = (1.8663f - temp_volts) / 0.01169f;
         // datasheet eq.(3): full range (uses sqrtf from math.h)

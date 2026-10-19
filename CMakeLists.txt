@@ -38,7 +38,7 @@ pico_sdk_init()
 # add_executable(A4_SD_Logging A4_SD_Logging.c )
 add_subdirectory(lib/pico_fatfs)
 
-add_executable(A4_SD_Logging A4_SD_Logging.c sensors.c)
+add_executable(A4_SD_Logging A4_SD_Logging.c sensors.c sd_logger.c)
 
 pico_set_program_name(A4_SD_Logging "A4_SD_Logging")
 pico_set_program_version(A4_SD_Logging "0.1")

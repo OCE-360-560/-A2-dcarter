@@ -1,6 +1,14 @@
+#include <stdio.h>
+#include "pico/stdlib.h"
+#include "hardware/spi.h"
+#include <stdio.h>
+#include <string.h>
 #include <math.h>
+#include "hardware/gpio.h"
 #include "hardware/adc.h"
-#include "sensors.h"
+#include "hardware/spi.h"
+#include "ff.h"      // FatFs: f_mount, f_open, f_write, f_sync
+#include "tf_card.h" // pico_fatfs: SD card pins and clock
 
 #define PHOTO_CELL_PIN 26
 #define PHOTO_CELL_ADC 0
@@ -9,16 +17,14 @@
 #define SUPPLY_VOLTS 3.3f
 #define TEMP_PIN 27
 #define TEMP_ADC 1
-#define SAMPLE_PERIOD_MS 1000
 #define PIN_SCK 18
 #define PIN_TX 19 // PICO: to the card's DI
-#define PIN_RX 20 // PICO: from the card's DO
+#define PIN_RX 20 // POCI: from the card's DO
 #define PIN_CS 21
 
 const float ADC_FULL_SCALE_COUNTS = (1 << 12); // 12-bit ADC
 const float CONVERSION_FACTOR_V = SUPPLY_VOLTS / ADC_FULL_SCALE_COUNTS;
 
-// ...paste the other sensor #defines here...
 static float read_volts(unsigned int adc_input)
 {
     adc_select_input(adc_input);
@@ -53,6 +59,7 @@ void sensors_init(void)
     adc_gpio_init(PHOTO_CELL_PIN);
     // LM19 setup
     adc_gpio_init(TEMP_PIN);
+
 }
 float sensors_read_lux(void)
 {

@@ -17,10 +17,10 @@
 #define SUPPLY_VOLTS 3.3f
 #define TEMP_PIN 27
 #define TEMP_ADC 1
-#define PIN_SCK 18
-#define PIN_TX 19 // PICO: to the card's DI
-#define PIN_RX 20 // POCI: from the card's DO
-#define PIN_CS 21
+// #define PIN_SCK 18
+// #define PIN_TX 19 // PICO: to the card's DI
+// #define PIN_RX 20 // POCI: from the card's DO
+// #define PIN_CS 21
 
 const float ADC_FULL_SCALE_COUNTS = (1 << 12); // 12-bit ADC
 const float CONVERSION_FACTOR_V = SUPPLY_VOLTS / ADC_FULL_SCALE_COUNTS;

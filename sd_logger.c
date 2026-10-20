@@ -16,6 +16,10 @@
 #define PIN_RX 20 // POCI: from the card's DO
 #define PIN_CS 21
 
+static FIL log_file;
+static FATFS filesystem;
+UINT bw; // bytes written
+
 // Describe the wiring:
 static pico_fatfs_spi_config_t sd_config = {
     spi0,             // SPI instance
@@ -36,12 +40,17 @@ static pico_fatfs_spi_config_t sd_config = {
     gpio_set_function(PIN_RX, GPIO_FUNC_SPI);
     gpio_init(PIN_CS); // CS: plain output
     gpio_set_dir(PIN_CS, GPIO_OUT);
-    gpio_put(PIN_CS, 1); // idle hig
-    uint8_t tx = 0xA5;   // out on TX, in on RX
+    gpio_put(PIN_CS, 1);                        // idle high
+    uint8_t tx = 0xA5;                          // out on TX, in on RX
 }
-static FIL log_file;
-static FATFS filesystem;
-UINT bw; // bytes written
+
+void halt(void){
+    printf("Halting program.\r\n");
+    // while (true)
+    //     tight_loop_contents();
+    return; // return to main() and let it loop forever
+}
+
 
 /** Mount the card and open a file for appending.
  *   path:   file name on the card, e.g. "log.csv"
@@ -76,20 +85,24 @@ bool sd_logger_open(const char *path, const char *header)
 
 /** Append one line and sync it to the card.
  * Returns false if any part didn't reach the card. */
-bool sd_logger_write(const char *line ,float *time_s, float *lux, float *temp_c)
+// bool sd_logger_write(const char *line ,double time_s, float lux, float temp_c)
+bool sd_logger_write(double time_s, float lux, float temp_c)
+
 {
     // f_write(&log_file, line, strlen(line), &bw);
     // f_sync(&log_file);
     // return (bw == strlen(line));
-    // char line[64];
+    char line[64];
     int len = snprintf(line, sizeof line,
                        //                           "%.3f, %.3f, %.7f, %.3f\r\n", time_s, photo_cell_volts, lux, temp_c);
                        "%.3f, %.7f, %.3f\r\n", time_s, lux, temp_c);
 
     printf("%s", line);                 // Serial Monitor
     f_write(&log_file, line, len, &bw); // into the buffer
-    f_sync(&log_file);                  // onto the card
+    f_sync(&log_file);  
+                    // onto the card
 };
+
 /** Close the file and unmount. Safe to remove after. */
 void sd_logger_close(void)
 {
